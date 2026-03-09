@@ -1,43 +1,152 @@
-# Set paths
+param(
+    [switch]$Preview,
+    [int]$Port = 4173
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
 $baseDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$distPath = Join-Path -Path $baseDir -ChildPath "dist"
-$layoutPath = Join-Path -Path $baseDir -ChildPath "layout.html"
-$contentPath = $baseDir
-$assetsPath = Join-Path -Path $baseDir -ChildPath "assets"
-$stylesPath = Join-Path -Path $baseDir -ChildPath "styles"
-$scriptsPath = Join-Path -Path $baseDir -ChildPath "scripts"
-$distAssetsPath = Join-Path -Path $distPath -ChildPath "assets"
-$distStylesPath = Join-Path -Path $distPath -ChildPath "styles"
-$distScriptsPath = Join-Path -Path $distPath -ChildPath "scripts"
+Set-Location -Path $baseDir
 
-# Create dist subdirectories if they don't exist
-if (-not (Test-Path -Path $distAssetsPath)) {
-    New-Item -ItemType Directory -Path $distAssetsPath | Out-Null
-}
-if (-not (Test-Path -Path $distStylesPath)) {
-    New-Item -ItemType Directory -Path $distStylesPath | Out-Null
-}
-if (-not (Test-Path -Path $distScriptsPath)) {
-    New-Item -ItemType Directory -Path $distScriptsPath | Out-Null
+function Copy-DirectorySafe {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    if (Test-Path -Path $Source) {
+        New-Item -Path $Destination -ItemType Directory -Force | Out-Null
+        Copy-Item -Path (Join-Path -Path $Source -ChildPath '*') -Destination $Destination -Recurse -Force
+    }
 }
 
-# Read layout template
-$layout = Get-Content -Path $layoutPath -Raw
+function Invoke-NativeBuild {
+    $distPath = Join-Path -Path $baseDir -ChildPath 'dist'
+    $layoutPath = Join-Path -Path $baseDir -ChildPath 'layout.html'
+    $pages = @('index.html', 'imprint.html', 'datenschutz.html')
+    $injectionMarker = '<!-- Page-specific content will be injected here -->'
 
-# Process content pages
-$pages = @("index.html", "imprint.html", "datenschutz.html")
-foreach ($page in $pages) {
-    $pageContent = Get-Content -Path (Join-Path -Path $contentPath -ChildPath $page) -Raw
-    $finalHtml = $layout -replace "<!-- Page-specific content will be injected here -->", $pageContent
-    Set-Content -Path (Join-Path -Path $distPath -ChildPath $page) -Value $finalHtml
+    if (Test-Path -Path $distPath) {
+        Remove-Item -Path $distPath -Recurse -Force
+    }
+    New-Item -Path $distPath -ItemType Directory -Force | Out-Null
+
+    $layout = Get-Content -Path $layoutPath -Raw -Encoding UTF8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    if (-not $layout.Contains($injectionMarker)) {
+        throw "Missing template marker in layout.html"
+    }
+
+    foreach ($page in $pages) {
+        $pagePath = Join-Path -Path $baseDir -ChildPath $page
+        $pageContent = Get-Content -Path $pagePath -Raw -Encoding UTF8
+        $finalHtml = $layout.Replace($injectionMarker, $pageContent)
+        $targetPath = Join-Path -Path $distPath -ChildPath $page
+        [System.IO.File]::WriteAllText($targetPath, $finalHtml, $utf8NoBom)
+    }
+
+    Copy-DirectorySafe -Source (Join-Path -Path $baseDir -ChildPath 'assets') -Destination (Join-Path -Path $distPath -ChildPath 'assets')
+    Copy-DirectorySafe -Source (Join-Path -Path $baseDir -ChildPath 'styles') -Destination (Join-Path -Path $distPath -ChildPath 'styles')
+    Copy-DirectorySafe -Source (Join-Path -Path $baseDir -ChildPath 'scripts') -Destination (Join-Path -Path $distPath -ChildPath 'scripts')
+
+    $cnamePath = Join-Path -Path $baseDir -ChildPath 'cname'
+    if (Test-Path -Path $cnamePath) {
+        Copy-Item -Path $cnamePath -Destination (Join-Path -Path $distPath -ChildPath 'cname') -Force
+    }
+
+    Write-Host "Build completed: dist is ready for GitHub Pages."
 }
 
-# Copy assets, styles and scripts
-Copy-Item -Path $assetsPath -Destination $distPath -Recurse -Force
-Copy-Item -Path $stylesPath -Destination $distPath -Recurse -Force
-Copy-Item -Path $scriptsPath -Destination $distPath -Recurse -Force
+function Invoke-NodeBuild {
+    Write-Host "Running Node.js build..."
+    & node (Join-Path -Path $baseDir -ChildPath 'build.js')
+    if ($LASTEXITCODE -ne 0) {
+        throw "build.js exited with code $LASTEXITCODE"
+    }
+}
 
-# Copy other files
-Copy-Item -Path (Join-Path -Path $baseDir -ChildPath "cname") -Destination $distPath -Force
+function Start-PowerShellPreview {
+    param(
+        [Parameter(Mandatory = $true)][int]$PreviewPort
+    )
 
-Write-Host "Website built successfully!"
+    $distPath = Join-Path -Path $baseDir -ChildPath 'dist'
+    if (-not (Test-Path -Path $distPath)) {
+        throw "dist directory not found. Run build first."
+    }
+
+    Add-Type -AssemblyName System.Web
+    $listener = New-Object System.Net.HttpListener
+    $listener.Prefixes.Add("http://localhost:$PreviewPort/")
+    $listener.Start()
+
+    Write-Host "Preview server running at http://localhost:$PreviewPort"
+    Write-Host "Press Ctrl+C to stop."
+
+    try {
+        while ($listener.IsListening) {
+            $context = $listener.GetContext()
+            $requestPath = [System.Web.HttpUtility]::UrlDecode($context.Request.Url.AbsolutePath)
+            if ([string]::IsNullOrWhiteSpace($requestPath) -or $requestPath -eq '/') {
+                $requestPath = '/index.html'
+            }
+
+            $relativePath = $requestPath.TrimStart('/') -replace '/', '\\'
+            $fullPath = Join-Path -Path $distPath -ChildPath $relativePath
+
+            if ((Test-Path -Path $fullPath) -and -not (Get-Item -Path $fullPath).PSIsContainer) {
+                $bytes = [System.IO.File]::ReadAllBytes($fullPath)
+                $extension = [System.IO.Path]::GetExtension($fullPath).ToLowerInvariant()
+                $contentType = switch ($extension) {
+                    '.html' { 'text/html; charset=utf-8' }
+                    '.css' { 'text/css; charset=utf-8' }
+                    '.js' { 'application/javascript; charset=utf-8' }
+                    '.json' { 'application/json; charset=utf-8' }
+                    '.svg' { 'image/svg+xml' }
+                    '.png' { 'image/png' }
+                    '.jpg' { 'image/jpeg' }
+                    '.jpeg' { 'image/jpeg' }
+                    '.webp' { 'image/webp' }
+                    '.ico' { 'image/x-icon' }
+                    default { 'application/octet-stream' }
+                }
+
+                $context.Response.ContentType = $contentType
+                $context.Response.ContentLength64 = $bytes.Length
+                $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+            }
+            else {
+                $context.Response.StatusCode = 404
+                $notFound = [System.Text.Encoding]::UTF8.GetBytes('Not found')
+                $context.Response.ContentType = 'text/plain; charset=utf-8'
+                $context.Response.ContentLength64 = $notFound.Length
+                $context.Response.OutputStream.Write($notFound, 0, $notFound.Length)
+            }
+
+            $context.Response.OutputStream.Close()
+        }
+    }
+    finally {
+        $listener.Stop()
+        $listener.Close()
+    }
+}
+
+if (Get-Command -Name node -ErrorAction SilentlyContinue) {
+    Invoke-NodeBuild
+}
+else {
+    Write-Host "Node.js not found. Using PowerShell fallback build."
+    Invoke-NativeBuild
+}
+
+if ($Preview) {
+    if (Get-Command -Name node -ErrorAction SilentlyContinue) {
+        Write-Host "Starting local preview on http://localhost:$Port"
+        & node (Join-Path -Path $baseDir -ChildPath 'preview.js') --port $Port
+    }
+    else {
+        Start-PowerShellPreview -PreviewPort $Port
+    }
+}

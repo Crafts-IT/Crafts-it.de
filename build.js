@@ -1,65 +1,91 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-async function build() {
+const INJECTION_MARKER = '<!-- Page-specific content will be injected here -->';
+
+const paths = {
+    root: __dirname,
+    dist: path.join(__dirname, 'dist'),
+    layout: path.join(__dirname, 'layout.html'),
+    assets: path.join(__dirname, 'assets'),
+    styles: path.join(__dirname, 'styles'),
+    scripts: path.join(__dirname, 'scripts'),
+    cname: path.join(__dirname, 'cname'),
+};
+
+const pages = ['index.html', 'imprint.html', 'datenschutz.html'];
+
+async function pathExists(targetPath) {
     try {
-        const distPath = path.join(__dirname, 'dist');
-        const layoutPath = path.join(__dirname, 'layout.html');
-        const contentPath = __dirname;
-        const assetsPath = path.join(__dirname, 'assets');
-        const stylesPath = path.join(__dirname, 'styles');
-        const scriptsPath = path.join(__dirname, 'scripts');
-        const distAssetsPath = path.join(distPath, 'assets');
-        const distStylesPath = path.join(distPath, 'styles');
-        const distScriptsPath = path.join(distPath, 'scripts');
-
-        // Create dist subdirectories if they don't exist (in parallel)
-        await Promise.all([
-            fs.mkdir(distAssetsPath, { recursive: true }),
-            fs.mkdir(distStylesPath, { recursive: true }),
-            fs.mkdir(distScriptsPath, { recursive: true }),
-        ]);
-
-        // Read layout template
-        const layout = await fs.readFile(layoutPath, 'utf-8');
-
-        // Process content pages in parallel
-        const pages = ['index.html', 'imprint.html', 'datenschutz.html'];
-        await Promise.all(pages.map(async (page) => {
-            const pageContent = await fs.readFile(path.join(contentPath, page), 'utf-8');
-            const finalHtml = layout.replace('<!-- Page-specific content will be injected here -->', pageContent);
-            await fs.writeFile(path.join(distPath, page), finalHtml);
-        }));
-
-        // Copy assets, styles and scripts in parallel
-        await Promise.all([
-            copyDir(assetsPath, distAssetsPath),
-            copyDir(stylesPath, distStylesPath),
-            copyDir(scriptsPath, distScriptsPath),
-        ]);
-        
-        // Copy other files
-        await fs.copyFile(path.join(__dirname, 'cname'), path.join(distPath, 'cname'));
-
-
-        console.log('Website built successfully!');
-    } catch (error) {
-        console.error('Error building website:', error);
+        await fs.access(targetPath);
+        return true;
+    } catch {
+        return false;
     }
 }
 
-async function copyDir(src, dest) {
-    const entries = await fs.readdir(src, { withFileTypes: true });
+async function ensureCleanDist(distPath) {
+    await fs.rm(distPath, { recursive: true, force: true });
+    await fs.mkdir(distPath, { recursive: true });
+}
+
+async function renderPage(layoutHtml, pageName) {
+    const sourcePath = path.join(paths.root, pageName);
+    const content = await fs.readFile(sourcePath, 'utf8');
+    const html = layoutHtml.replace(INJECTION_MARKER, content);
+    await fs.writeFile(path.join(paths.dist, pageName), html, 'utf8');
+}
+
+async function copyDirIfExists(sourceDir, targetDir) {
+    if (!(await pathExists(sourceDir))) {
+        return;
+    }
+
+    await fs.mkdir(targetDir, { recursive: true });
+    const entries = await fs.readdir(sourceDir, { withFileTypes: true });
+
     await Promise.all(entries.map(async (entry) => {
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
+        const src = path.join(sourceDir, entry.name);
+        const dest = path.join(targetDir, entry.name);
+
         if (entry.isDirectory()) {
-            await fs.mkdir(destPath, { recursive: true });
-            await copyDir(srcPath, destPath);
-        } else {
-            await fs.copyFile(srcPath, destPath);
+            await copyDirIfExists(src, dest);
+            return;
         }
+
+        await fs.copyFile(src, dest);
     }));
+}
+
+async function copyFileIfExists(sourceFile, targetFile) {
+    if (await pathExists(sourceFile)) {
+        await fs.copyFile(sourceFile, targetFile);
+    }
+}
+
+async function build() {
+    try {
+        await ensureCleanDist(paths.dist);
+
+        const layoutHtml = await fs.readFile(paths.layout, 'utf8');
+        if (!layoutHtml.includes(INJECTION_MARKER)) {
+            throw new Error(`Missing template marker: ${INJECTION_MARKER}`);
+        }
+
+        await Promise.all(pages.map((pageName) => renderPage(layoutHtml, pageName)));
+
+        await Promise.all([
+            copyDirIfExists(paths.assets, path.join(paths.dist, 'assets')),
+            copyDirIfExists(paths.styles, path.join(paths.dist, 'styles')),
+            copyDirIfExists(paths.scripts, path.join(paths.dist, 'scripts')),
+            copyFileIfExists(paths.cname, path.join(paths.dist, 'cname')),
+        ]);
+
+        console.log('Build completed: dist is ready for GitHub Pages.');
+    } catch (error) {
+        console.error('Build failed:', error);
+        process.exitCode = 1;
+    }
 }
 
 build();

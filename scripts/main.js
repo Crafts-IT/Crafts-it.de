@@ -1,32 +1,47 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // Set current year in footer
-    const yearSpan = document.getElementById('year');
-    if (yearSpan) {
-        yearSpan.textContent = new Date().getFullYear();
-    }
+const COOKIE_ACCEPTED_KEY = 'cookieAccepted';
 
-    // Cookie Banner Logic
-    const cookieBanner = document.getElementById('cookie-banner');
+function setCurrentYear() {
+    const yearElement = document.getElementById('year');
+    if (yearElement) {
+        yearElement.textContent = String(new Date().getFullYear());
+    }
+}
+
+function getCookieConsent() {
+    try {
+        return localStorage.getItem(COOKIE_ACCEPTED_KEY) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+function setCookieConsent() {
+    try {
+        localStorage.setItem(COOKIE_ACCEPTED_KEY, 'true');
+    } catch {
+        // Ignore storage errors: banner state will not persist.
+    }
+}
+
+function initCookieBanner() {
+    const banner = document.getElementById('cookie-banner');
     const acceptButton = document.getElementById('cookie-accept');
 
-    if (cookieBanner && acceptButton) {
-        // Check if cookie has already been accepted
-        try {
-            if (!localStorage.getItem('cookieAccepted')) {
-                cookieBanner.style.display = 'block';
-            }
-        } catch (e) {
-            // localStorage unavailable (e.g. private browsing); show banner by default
-            cookieBanner.style.display = 'block';
-        }
-
-        acceptButton.addEventListener('click', () => {
-            try {
-                localStorage.setItem('cookieAccepted', 'true');
-            } catch (e) {
-                // localStorage unavailable; banner will reappear on next visit
-            }
-            cookieBanner.style.display = 'none';
-        });
+    if (!banner || !acceptButton) {
+        return;
     }
+
+    if (!getCookieConsent()) {
+        banner.style.display = 'block';
+    }
+
+    acceptButton.addEventListener('click', () => {
+        setCookieConsent();
+        banner.style.display = 'none';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setCurrentYear();
+    initCookieBanner();
 });
