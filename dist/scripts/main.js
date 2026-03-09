@@ -11,12 +11,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (cookieBanner && acceptButton) {
         // Check if cookie has already been accepted
-        if (!localStorage.getItem('cookieAccepted')) {
+        try {
+            if (!localStorage.getItem('cookieAccepted')) {
+                cookieBanner.style.display = 'block';
+            }
+        } catch (e) {
+            // localStorage unavailable (e.g. private browsing); show banner by default
             cookieBanner.style.display = 'block';
         }
 
         acceptButton.addEventListener('click', () => {
-            localStorage.setItem('cookieAccepted', 'true');
+            try {
+                localStorage.setItem('cookieAccepted', 'true');
+            } catch (e) {
+                // localStorage unavailable; banner will reappear on next visit
+            }
             cookieBanner.style.display = 'none';
         });
     }
