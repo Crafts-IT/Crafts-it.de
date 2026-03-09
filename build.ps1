@@ -1,6 +1,8 @@
 param(
-    [switch]$Preview,
-    [int]$Port = 4173
+    [ValidateSet('build', 'preview')]
+    [string]$Mode = 'build',
+    [int]$Port = 4173,
+    [switch]$Rebuild
 )
 
 Set-StrictMode -Version Latest
@@ -24,7 +26,20 @@ function Copy-DirectorySafe {
 function Invoke-NativeBuild {
     $distPath = Join-Path -Path $baseDir -ChildPath 'dist'
     $layoutPath = Join-Path -Path $baseDir -ChildPath 'layout.html'
-    $pages = @('index.html', 'imprint.html', 'datenschutz.html')
+    $pages = @(
+        'index.html',
+        'services.html',
+        'about.html',
+        'contact.html',
+        'imprint.html',
+        'datenschutz.html',
+        'index-en.html',
+        'services-en.html',
+        'about-en.html',
+        'contact-en.html',
+        'imprint-en.html',
+        'privacy.html'
+    )
     $injectionMarker = '<!-- Page-specific content will be injected here -->'
 
     if (Test-Path -Path $distPath) {
@@ -133,15 +148,33 @@ function Start-PowerShellPreview {
     }
 }
 
-if (Get-Command -Name node -ErrorAction SilentlyContinue) {
-    Invoke-NodeBuild
-}
-else {
-    Write-Host "Node.js not found. Using PowerShell fallback build."
-    Invoke-NativeBuild
+function Invoke-Build {
+    if (Get-Command -Name node -ErrorAction SilentlyContinue) {
+        Invoke-NodeBuild
+    }
+    else {
+        Write-Host "Node.js not found. Using PowerShell fallback build."
+        Invoke-NativeBuild
+    }
 }
 
-if ($Preview) {
+Write-Host "Reminder: edit source files under 'styles/' and 'scripts/' (not 'dist/')."
+
+$distPath = Join-Path -Path $baseDir -ChildPath 'dist'
+$distIndex = Join-Path -Path $distPath -ChildPath 'index.html'
+
+if ($Mode -eq 'build') {
+    Invoke-Build
+    Write-Host "Build finished and script exited."
+}
+elseif ($Mode -eq 'preview') {
+    if ($Rebuild -or -not (Test-Path -Path $distIndex)) {
+        Invoke-Build
+    }
+    else {
+        Write-Host "Using existing dist output (no rebuild). Use -Rebuild to force a fresh build."
+    }
+
     if (Get-Command -Name node -ErrorAction SilentlyContinue) {
         Write-Host "Starting local preview on http://localhost:$Port"
         & node (Join-Path -Path $baseDir -ChildPath 'preview.js') --port $Port

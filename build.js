@@ -13,7 +13,20 @@ const paths = {
     cname: path.join(__dirname, 'cname'),
 };
 
-const pages = ['index.html', 'imprint.html', 'datenschutz.html'];
+const pages = [
+    'index.html',
+    'services.html',
+    'about.html',
+    'contact.html',
+    'imprint.html',
+    'datenschutz.html',
+    'index-en.html',
+    'services-en.html',
+    'about-en.html',
+    'contact-en.html',
+    'imprint-en.html',
+    'privacy.html',
+];
 
 async function pathExists(targetPath) {
     try {
