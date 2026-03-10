@@ -107,6 +107,21 @@ nav {
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
+.remote-support-btn {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    background: #545B7B;
+    color: #fff !important;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.remote-support-btn:hover {
+    background: #3E4255;
+}
+
 /* Services Grid */
 #services {
     padding: 4rem 2rem;
