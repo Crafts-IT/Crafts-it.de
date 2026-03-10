@@ -1,0 +1,11 @@
+{
+  "name": "crafts-it-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static Crafts-IT website build and local preview tools",
+  "scripts": {
+    "build": "node build.js",
+    "preview": "node preview.js",
+    "dev": "npm run build && npm run preview"
+  }
+}
