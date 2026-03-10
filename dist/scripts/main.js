@@ -74,6 +74,7 @@ function getCounterpartPage(pageName) {
 
 function applyLanguageUi(language) {
     const navLinks = document.querySelectorAll('.nav-links a');
+    const remoteSupportLink = document.getElementById('remote-support-link');
     const imprintLink = document.getElementById('footer-imprint');
     const privacyLink = document.getElementById('footer-privacy');
     const cookieText = document.querySelector('#cookie-banner .cookie-content p');
@@ -113,6 +114,10 @@ function applyLanguageUi(language) {
             privacyLink.textContent = 'Datenschutz';
             privacyLink.href = 'datenschutz.html';
         }
+    }
+
+    if (remoteSupportLink) {
+        remoteSupportLink.textContent = language === 'en' ? 'Remote Support' : 'Remote Support';
     }
 
     if (cookieText && cookieButton) {

@@ -71,6 +71,11 @@ To change colors, search for these hex codes in `style.css` and replace them.
 
 The preview will start at `http://localhost:4173`
 
+**Stop local preview:**
+```powershell
+.\build.ps1 -Mode stop-preview
+```
+
 ### Option 2: Using Node.js
 
 If you have Node.js installed:

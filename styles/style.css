@@ -68,6 +68,21 @@ nav {
     color: #fff;
 }
 
+.remote-support-header {
+    display: inline-block;
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid #545B7B;
+    color: #545B7B;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.remote-support-header:hover {
+    background: #545B7B;
+    color: #fff;
+}
+
 /* Hero Section */
 .hero {
     text-align: center;
@@ -107,19 +122,27 @@ nav {
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-.remote-support-btn {
-    display: inline-block;
-    margin-top: 0.5rem;
-    padding: 0.7rem 1rem;
-    border-radius: 8px;
-    background: #545B7B;
-    color: #fff !important;
-    text-decoration: none;
-    font-weight: 700;
+.about-photo-wrap {
+    margin: 0;
 }
 
-.remote-support-btn:hover {
-    background: #3E4255;
+.about-photo {
+    width: 220px;
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+.about-layout {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2rem;
+}
+
+.about-text {
+    flex: 1;
 }
 
 /* Services Grid */
@@ -257,7 +280,16 @@ footer a:hover {
         margin-top: 0.25rem;
     }
 
+    .remote-support-header {
+        margin-top: 0.25rem;
+    }
+
     .logo-img {
         height: 96px !important;
+    }
+
+    .about-layout {
+        flex-direction: column-reverse;
+        gap: 1rem;
     }
 }

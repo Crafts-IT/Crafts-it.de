@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('build', 'preview')]
+    [ValidateSet('build', 'preview', 'restart-preview', 'stop-preview', 'serve-internal')]
     [string]$Mode = 'build',
     [int]$Port = 4173,
     [switch]$Rebuild
@@ -10,6 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 $baseDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location -Path $baseDir
+$previewPidFile = Join-Path -Path $baseDir -ChildPath '.preview.pid'
 
 function Copy-DirectorySafe {
     param(
@@ -102,7 +103,8 @@ function Start-PowerShellPreview {
     try {
         while ($listener.IsListening) {
             $context = $listener.GetContext()
-            $requestPath = [System.Web.HttpUtility]::UrlDecode($context.Request.Url.AbsolutePath)
+            # Decode percent-encoded path segments without converting '+' into spaces.
+            $requestPath = [System.Uri]::UnescapeDataString($context.Request.Url.AbsolutePath)
             if ([string]::IsNullOrWhiteSpace($requestPath) -or $requestPath -eq '/') {
                 $requestPath = '/index.html'
             }
@@ -148,6 +150,92 @@ function Start-PowerShellPreview {
     }
 }
 
+function Get-PreviewState {
+    if (-not (Test-Path -Path $previewPidFile)) {
+        return $null
+    }
+
+    $raw = Get-Content -Path $previewPidFile -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return $null
+    }
+
+    try {
+        return $raw | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+}
+
+function Save-PreviewState {
+    param(
+        [Parameter(Mandatory = $true)][int]$PreviewProcessId,
+        [Parameter(Mandatory = $true)][int]$PreviewPort
+    )
+
+    $state = @{
+        pid = $PreviewProcessId
+        port = $PreviewPort
+    }
+
+    $state | ConvertTo-Json | Set-Content -Path $previewPidFile -Encoding UTF8
+}
+
+function Remove-PreviewState {
+    if (Test-Path -Path $previewPidFile) {
+        Remove-Item -Path $previewPidFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Stop-PreviewProcess {
+    $state = Get-PreviewState
+    if ($null -eq $state) {
+        Write-Host "No active preview server found."
+        Remove-PreviewState
+        return
+    }
+
+    $previewProcess = Get-Process -Id $state.pid -ErrorAction SilentlyContinue
+    if ($null -eq $previewProcess) {
+        Write-Host "No active preview server found (stale PID removed)."
+        Remove-PreviewState
+        return
+    }
+
+    Stop-Process -Id $state.pid -Force
+    Remove-PreviewState
+    Write-Host "Preview server stopped (PID $($state.pid))."
+}
+
+function Start-PreviewDetached {
+    param(
+        [Parameter(Mandatory = $true)][int]$PreviewPort
+    )
+
+    $existing = Get-PreviewState
+    if ($null -ne $existing) {
+        $existingProcess = Get-Process -Id $existing.pid -ErrorAction SilentlyContinue
+        if ($null -ne $existingProcess) {
+            Write-Host "Preview already running at http://localhost:$($existing.port) (PID $($existing.pid))."
+            Write-Host "Stop it with: .\\build.ps1 -Mode stop-preview"
+            return
+        }
+
+        Remove-PreviewState
+    }
+
+    $selfPath = Join-Path -Path $baseDir -ChildPath 'build.ps1'
+    $command = "& '$selfPath' -Mode serve-internal -Port $PreviewPort"
+    $proc = Start-Process -FilePath powershell -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $command) -PassThru
+
+    Start-Sleep -Milliseconds 400
+    Save-PreviewState -PreviewProcessId $proc.Id -PreviewPort $PreviewPort
+
+    Write-Host "Preview started at http://localhost:$PreviewPort (PID $($proc.Id))."
+    Write-Host "Stop it with: .\\build.ps1 -Mode stop-preview"
+}
+
 function Invoke-Build {
     if (Get-Command -Name node -ErrorAction SilentlyContinue) {
         Invoke-NodeBuild
@@ -175,11 +263,23 @@ elseif ($Mode -eq 'preview') {
         Write-Host "Using existing dist output (no rebuild). Use -Rebuild to force a fresh build."
     }
 
-    if (Get-Command -Name node -ErrorAction SilentlyContinue) {
-        Write-Host "Starting local preview on http://localhost:$Port"
-        & node (Join-Path -Path $baseDir -ChildPath 'preview.js') --port $Port
+    Start-PreviewDetached -PreviewPort $Port
+}
+elseif ($Mode -eq 'restart-preview') {
+    Stop-PreviewProcess
+
+    if ($Rebuild -or -not (Test-Path -Path $distIndex)) {
+        Invoke-Build
     }
     else {
-        Start-PowerShellPreview -PreviewPort $Port
+        Write-Host "Using existing dist output (no rebuild). Use -Rebuild to force a fresh build."
     }
+
+    Start-PreviewDetached -PreviewPort $Port
+}
+elseif ($Mode -eq 'stop-preview') {
+    Stop-PreviewProcess
+}
+elseif ($Mode -eq 'serve-internal') {
+    Start-PowerShellPreview -PreviewPort $Port
 }
