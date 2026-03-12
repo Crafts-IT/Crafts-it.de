@@ -137,7 +137,7 @@ async function renderPage(layoutHtml, pageName) {
         .replace('{{HTML_LANG}}', meta.lang)
         .replaceAll('{{PAGE_TITLE}}', meta.title)
         .replaceAll('{{PAGE_DESCRIPTION}}', meta.description)
-        .replace('{{CANONICAL_URL}}', canonicalUrl)
+        .replaceAll('{{CANONICAL_URL}}', canonicalUrl)
         .replace('{{HREFLANG_LINKS}}', hreflangs)
         .replace('{{OG_LOCALE}}', meta.lang === 'de' ? 'de_DE' : 'en_US')
         .replace(INJECTION_MARKER, content);
