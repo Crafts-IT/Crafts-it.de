@@ -6,8 +6,9 @@ const BASE_URL = 'https://www.crafts-it.de';
 
 const paths = {
     root: __dirname,
-    dist: path.join(__dirname, 'dist'),
-    layout: path.join(__dirname, 'layout.html'),
+    pages: path.join(__dirname, 'pages'),
+    docs: path.join(__dirname, 'docs'),
+    layout: path.join(__dirname, 'pages', 'layout.html'),
     assets: path.join(__dirname, 'assets'),
     styles: path.join(__dirname, 'styles'),
     scripts: path.join(__dirname, 'scripts'),
@@ -110,13 +111,13 @@ async function pathExists(targetPath) {
     }
 }
 
-async function ensureCleanDist(distPath) {
-    await fs.rm(distPath, { recursive: true, force: true });
-    await fs.mkdir(distPath, { recursive: true });
+async function ensureCleanDocs(docsPath) {
+    await fs.rm(docsPath, { recursive: true, force: true });
+    await fs.mkdir(docsPath, { recursive: true });
 }
 
 async function renderPage(layoutHtml, pageName) {
-    const sourcePath = path.join(paths.root, pageName);
+    const sourcePath = path.join(paths.pages, pageName);
     const content = await fs.readFile(sourcePath, 'utf8');
     const meta = pageMeta[pageName];
     if (!meta) {
@@ -142,7 +143,7 @@ async function renderPage(layoutHtml, pageName) {
         .replace('{{OG_LOCALE}}', meta.lang === 'de' ? 'de_DE' : 'en_US')
         .replace(INJECTION_MARKER, content);
 
-    await fs.writeFile(path.join(paths.dist, pageName), html, 'utf8');
+    await fs.writeFile(path.join(paths.docs, pageName), html, 'utf8');
 }
 
 async function copyDirIfExists(sourceDir, targetDir) {
@@ -174,7 +175,7 @@ async function copyFileIfExists(sourceFile, targetFile) {
 
 async function build() {
     try {
-        await ensureCleanDist(paths.dist);
+        await ensureCleanDocs(paths.docs);
 
         const layoutHtml = await fs.readFile(paths.layout, 'utf8');
         if (!layoutHtml.includes(INJECTION_MARKER)) {
@@ -184,15 +185,15 @@ async function build() {
         await Promise.all(pages.map((pageName) => renderPage(layoutHtml, pageName)));
 
         await Promise.all([
-            copyDirIfExists(paths.assets, path.join(paths.dist, 'assets')),
-            copyDirIfExists(paths.styles, path.join(paths.dist, 'styles')),
-            copyDirIfExists(paths.scripts, path.join(paths.dist, 'scripts')),
-            copyFileIfExists(paths.cname, path.join(paths.dist, 'cname')),
-            copyFileIfExists(path.join(paths.root, 'robots.txt'), path.join(paths.dist, 'robots.txt')),
-            copyFileIfExists(path.join(paths.root, 'sitemap.xml'), path.join(paths.dist, 'sitemap.xml')),
+            copyDirIfExists(paths.assets, path.join(paths.docs, 'assets')),
+            copyDirIfExists(paths.styles, path.join(paths.docs, 'styles')),
+            copyDirIfExists(paths.scripts, path.join(paths.docs, 'scripts')),
+            copyFileIfExists(paths.cname, path.join(paths.docs, 'cname')),
+            copyFileIfExists(path.join(paths.root, 'robots.txt'), path.join(paths.docs, 'robots.txt')),
+            copyFileIfExists(path.join(paths.root, 'sitemap.xml'), path.join(paths.docs, 'sitemap.xml')),
         ]);
 
-        console.log('Build completed: dist is ready for GitHub Pages.');
+        console.log('Build completed: docs is ready for GitHub Pages.');
     } catch (error) {
         console.error('Build failed:', error);
         process.exitCode = 1;
