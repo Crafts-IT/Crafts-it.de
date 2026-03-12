@@ -11,7 +11,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
     process.exit(1);
 }
 
-const distDir = path.join(__dirname, 'dist');
+const distDir = path.join(__dirname, 'docs');
 const mimeTypes = {
     '.html': 'text/html; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
@@ -72,6 +72,6 @@ fs.access(distDir)
         });
     })
     .catch(() => {
-        console.error('Missing dist directory. Run "node build.js" first.');
+        console.error('Missing docs directory. Run "node build.js" first.');
         process.exit(1);
     });

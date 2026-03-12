@@ -25,7 +25,7 @@ function Copy-DirectorySafe {
 }
 
 function Invoke-NativeBuild {
-    $distPath = Join-Path -Path $baseDir -ChildPath 'dist'
+    $distPath = Join-Path -Path $baseDir -ChildPath 'docs'
     $layoutPath = Join-Path -Path $baseDir -ChildPath 'layout.html'
     $pages = @(
         'index.html',
@@ -71,7 +71,7 @@ function Invoke-NativeBuild {
         Copy-Item -Path $cnamePath -Destination (Join-Path -Path $distPath -ChildPath 'cname') -Force
     }
 
-    Write-Host "Build completed: dist is ready for GitHub Pages."
+    Write-Host "Build completed: docs is ready for GitHub Pages."
 }
 
 function Invoke-NodeBuild {
@@ -87,9 +87,9 @@ function Start-PowerShellPreview {
         [Parameter(Mandatory = $true)][int]$PreviewPort
     )
 
-    $distPath = Join-Path -Path $baseDir -ChildPath 'dist'
+    $distPath = Join-Path -Path $baseDir -ChildPath 'docs'
     if (-not (Test-Path -Path $distPath)) {
-        throw "dist directory not found. Run build first."
+        throw "docs directory not found. Run build first."
     }
 
     Add-Type -AssemblyName System.Web
@@ -246,9 +246,9 @@ function Invoke-Build {
     }
 }
 
-Write-Host "Reminder: edit source files under 'styles/' and 'scripts/' (not 'dist/')."
+Write-Host "Reminder: edit source files under 'styles/' and 'scripts/' (not 'docs/')."
 
-$distPath = Join-Path -Path $baseDir -ChildPath 'dist'
+$distPath = Join-Path -Path $baseDir -ChildPath 'docs'
 $distIndex = Join-Path -Path $distPath -ChildPath 'index.html'
 
 if ($Mode -eq 'build') {
@@ -260,7 +260,7 @@ elseif ($Mode -eq 'preview') {
         Invoke-Build
     }
     else {
-        Write-Host "Using existing dist output (no rebuild). Use -Rebuild to force a fresh build."
+        Write-Host "Using existing docs output (no rebuild). Use -Rebuild to force a fresh build."
     }
 
     Start-PreviewDetached -PreviewPort $Port
@@ -272,7 +272,7 @@ elseif ($Mode -eq 'restart-preview') {
         Invoke-Build
     }
     else {
-        Write-Host "Using existing dist output (no rebuild). Use -Rebuild to force a fresh build."
+        Write-Host "Using existing docs output (no rebuild). Use -Rebuild to force a fresh build."
     }
 
     Start-PreviewDetached -PreviewPort $Port
