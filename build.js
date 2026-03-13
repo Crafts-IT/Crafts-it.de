@@ -188,9 +188,10 @@ async function build() {
             copyDirIfExists(paths.assets, path.join(paths.docs, 'assets')),
             copyDirIfExists(paths.styles, path.join(paths.docs, 'styles')),
             copyDirIfExists(paths.scripts, path.join(paths.docs, 'scripts')),
-            copyFileIfExists(paths.cname, path.join(paths.docs, 'cname')),
+            copyFileIfExists(paths.cname, path.join(paths.docs, 'CNAME')),
             copyFileIfExists(path.join(paths.root, 'robots.txt'), path.join(paths.docs, 'robots.txt')),
             copyFileIfExists(path.join(paths.root, 'sitemap.xml'), path.join(paths.docs, 'sitemap.xml')),
+            fs.writeFile(path.join(paths.docs, '.nojekyll'), '', 'utf8'),
         ]);
 
         console.log('Build completed: docs is ready for GitHub Pages.');
